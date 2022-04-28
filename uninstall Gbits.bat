@@ -1,0 +1,1 @@
+C:\Windows\SysWOW64\Regsvr32.exe /u %~dp0GbitsShellExtThumbnailHandler.dll

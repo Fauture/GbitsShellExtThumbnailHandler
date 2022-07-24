@@ -7,9 +7,16 @@
 
 // When you write your own handler, you must create a new CLSID by using the 
 // "Create GUID" tool in the Tools menu, and specify the CLSID value here.
-const CLSID CLSID_EpubThumbnailProvider =
+const CLSID CLSID_GbitsThumbnailProvider =
 // {16469314-EDDD-404F-A8CC-3F9C0A63497B}
-{ 0x4ECEE19A, 0x5151, 0x5151, { 0x51, 0x51, 0x3a, 0x4e, 0xce, 0xee, 0x19, 0xa } };
+{ 0x4ECEE19A, 0x5151, 0xa301, { 0x51, 0x51, 0x3a, 0x01, 0x4e, 0xce, 0xe1, 0x9a } };
+const CLSID CLSID_GbitsJdThumbnailProvider =
+// {16469314-EDDD-404F-A8CC-3F9C0A63497B}
+{ 0x4ECEE19A, 0x5151, 0xa302, { 0x51, 0x51, 0x3a, 0x02, 0x4e, 0xce, 0xe1, 0x9a } };
+const CLSID CLSID_GbitsDkThumbnailProvider =
+// {16469314-EDDD-404F-A8CC-3F9C0A63497B}
+{ 0x4ECEE19A, 0x5151, 0xa303, { 0x51, 0x51, 0x3a, 0x03, 0x4e, 0xce, 0xe1, 0x9a } };
+
 
 HINSTANCE   g_hInst     = NULL;
 long        g_cDllRef   = 0;
@@ -51,11 +58,35 @@ STDAPI DllGetClassObject(REFCLSID rclsid, REFIID riid, void **ppv)
 {
     HRESULT hr = CLASS_E_CLASSNOTAVAILABLE;
 
-    if (IsEqualCLSID(CLSID_EpubThumbnailProvider, rclsid))
+    if (IsEqualCLSID(CLSID_GbitsThumbnailProvider, rclsid))
     {
         hr = E_OUTOFMEMORY;
 
         ClassFactory *pClassFactory = new ClassFactory();
+        if (pClassFactory)
+        {
+            hr = pClassFactory->QueryInterface(riid, ppv);
+            pClassFactory->Release();
+        }
+    }
+
+    if (IsEqualCLSID(CLSID_GbitsDkThumbnailProvider, rclsid))
+    {
+        hr = E_OUTOFMEMORY;
+
+        ClassFactory* pClassFactory = new ClassFactory();
+        if (pClassFactory)
+        {
+            hr = pClassFactory->QueryInterface(riid, ppv);
+            pClassFactory->Release();
+        }
+    }
+
+    if (IsEqualCLSID(CLSID_GbitsJdThumbnailProvider, rclsid))
+    {
+        hr = E_OUTOFMEMORY;
+
+        ClassFactory* pClassFactory = new ClassFactory();
         if (pClassFactory)
         {
             hr = pClassFactory->QueryInterface(riid, ppv);
@@ -97,18 +128,54 @@ STDAPI DllRegisterServer(void)
     }
 
     // Register the component.
-    hr = RegisterInprocServer(szModule, CLSID_EpubThumbnailProvider, 
+    hr = RegisterInprocServer(szModule, CLSID_GbitsThumbnailProvider,
         L"GbitsShellExtThumbnailHandler.GbitsThumbnailProvider Class", 
         L"Apartment");
     if (SUCCEEDED(hr))
     {
         // Register the thumbnail handler. 
         hr = RegisterShellExtThumbnailHandler(L".gbits", 
-            CLSID_EpubThumbnailProvider);
+            CLSID_GbitsThumbnailProvider);
         if (SUCCEEDED(hr))
         {
             // This tells the shell to invalidate the thumbnail cache. It is 
-            // important because any .epub files viewed before registering 
+            // important because any .gbits files viewed before registering 
+            // this handler would otherwise show cached blank thumbnails.
+            SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
+        }
+    }
+
+    // Register the component.
+    hr = RegisterInprocServer(szModule, CLSID_GbitsJdThumbnailProvider,
+        L"GbitsShellExtThumbnailHandler.GbitsThumbnailProvider Class",
+        L"Apartment");
+    if (SUCCEEDED(hr))
+    {
+        // Register the thumbnail handler. 
+        hr = RegisterShellExtThumbnailHandler(L".gbits_jd",
+            CLSID_GbitsJdThumbnailProvider);
+        if (SUCCEEDED(hr))
+        {
+            // This tells the shell to invalidate the thumbnail cache. It is 
+            // important because any .gbits_jd files viewed before registering 
+            // this handler would otherwise show cached blank thumbnails.
+            SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
+        }
+    }
+
+    // Register the component.
+    hr = RegisterInprocServer(szModule, CLSID_GbitsDkThumbnailProvider,
+        L"GbitsShellExtThumbnailHandler.GbitsThumbnailProvider Class",
+        L"Apartment");
+    if (SUCCEEDED(hr))
+    {
+        // Register the thumbnail handler. 
+        hr = RegisterShellExtThumbnailHandler(L".gbits_dk",
+            CLSID_GbitsDkThumbnailProvider);
+        if (SUCCEEDED(hr))
+        {
+            // This tells the shell to invalidate the thumbnail cache. It is 
+            // important because any .gbits_dk files viewed before registering 
             // this handler would otherwise show cached blank thumbnails.
             SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
         }
@@ -135,11 +202,27 @@ STDAPI DllUnregisterServer(void)
     }
 
     // Unregister the component.
-    hr = UnregisterInprocServer(CLSID_EpubThumbnailProvider);
+    hr = UnregisterInprocServer(CLSID_GbitsThumbnailProvider);
     if (SUCCEEDED(hr))
     {
         // Unregister the thumbnail handler.
         hr = UnregisterShellExtThumbnailHandler(L".gbits");
+    }
+
+    // Unregister the component.
+    hr = UnregisterInprocServer(CLSID_GbitsJdThumbnailProvider);
+    if (SUCCEEDED(hr))
+    {
+        // Unregister the thumbnail handler.
+        hr = UnregisterShellExtThumbnailHandler(L".gbits_jd");
+    }
+
+    // Unregister the component.
+    hr = UnregisterInprocServer(CLSID_GbitsDkThumbnailProvider);
+    if (SUCCEEDED(hr))
+    {
+        // Unregister the thumbnail handler.
+        hr = UnregisterShellExtThumbnailHandler(L".gbits_dk");
     }
 
     return hr;

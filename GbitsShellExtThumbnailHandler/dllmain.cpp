@@ -16,6 +16,9 @@ const CLSID CLSID_GbitsJdThumbnailProvider =
 const CLSID CLSID_GbitsDkThumbnailProvider =
 // {16469314-EDDD-404F-A8CC-3F9C0A63497B}
 { 0x4ECEE19A, 0x5151, 0xa303, { 0x51, 0x51, 0x3a, 0x03, 0x4e, 0xce, 0xe1, 0x9a } };
+const CLSID CLSID_GbitsJdhjThumbnailProvider =
+// {16469314-EDDD-404F-A8CC-3F9C0A63497B}
+{ 0x4ECEE19A, 0x5151, 0xa302, { 0x51, 0x51, 0x3a, 0x04, 0x4e, 0xce, 0xe1, 0x9a } };
 
 
 HINSTANCE   g_hInst     = NULL;
@@ -94,6 +97,19 @@ STDAPI DllGetClassObject(REFCLSID rclsid, REFIID riid, void **ppv)
         }
     }
 
+
+    if (IsEqualCLSID(CLSID_GbitsJdhjThumbnailProvider, rclsid))
+    {
+        hr = E_OUTOFMEMORY;
+
+        ClassFactory* pClassFactory = new ClassFactory();
+        if (pClassFactory)
+        {
+            hr = pClassFactory->QueryInterface(riid, ppv);
+            pClassFactory->Release();
+        }
+    }
+
     return hr;
 }
 
@@ -147,7 +163,7 @@ STDAPI DllRegisterServer(void)
 
     // Register the component.
     hr = RegisterInprocServer(szModule, CLSID_GbitsJdThumbnailProvider,
-        L"GbitsShellExtThumbnailHandler.GbitsThumbnailProvider Class",
+        L"GbitsShellExtThumbnailHandler.CLSID_GbitsJdThumbnailProvider Class",
         L"Apartment");
     if (SUCCEEDED(hr))
     {
@@ -164,8 +180,26 @@ STDAPI DllRegisterServer(void)
     }
 
     // Register the component.
+    hr = RegisterInprocServer(szModule, CLSID_GbitsJdhjThumbnailProvider,
+        L"GbitsShellExtThumbnailHandler.CLSID_GbitsJdhjThumbnailProvider Class",
+        L"Apartment");
+    if (SUCCEEDED(hr))
+    {
+        // Register the thumbnail handler. 
+        hr = RegisterShellExtThumbnailHandler(L".gbits_jdhj",
+            CLSID_GbitsJdhjThumbnailProvider);
+        if (SUCCEEDED(hr))
+        {
+            // This tells the shell to invalidate the thumbnail cache. It is 
+            // important because any .gbits_jd files viewed before registering 
+            // this handler would otherwise show cached blank thumbnails.
+            SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
+        }
+    }
+
+    // Register the component.
     hr = RegisterInprocServer(szModule, CLSID_GbitsDkThumbnailProvider,
-        L"GbitsShellExtThumbnailHandler.GbitsThumbnailProvider Class",
+        L"GbitsShellExtThumbnailHandler.CLSID_GbitsDkThumbnailProvider Class",
         L"Apartment");
     if (SUCCEEDED(hr))
     {
@@ -223,6 +257,14 @@ STDAPI DllUnregisterServer(void)
     {
         // Unregister the thumbnail handler.
         hr = UnregisterShellExtThumbnailHandler(L".gbits_dk");
+    }
+
+    // Unregister the component.
+    hr = UnregisterInprocServer(CLSID_GbitsJdhjThumbnailProvider);
+    if (SUCCEEDED(hr))
+    {
+        // Unregister the thumbnail handler.
+        hr = UnregisterShellExtThumbnailHandler(L".gbits_jdhj");
     }
 
     return hr;

@@ -38,6 +38,12 @@
     <ClInclude Include="webp\types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ByteArrayRead.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ByteArrayWrite.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ClassFactory.cpp">
@@ -50,6 +56,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="GbitsThumbnailProvider.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ByteArrayRead.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ByteArrayWrite.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

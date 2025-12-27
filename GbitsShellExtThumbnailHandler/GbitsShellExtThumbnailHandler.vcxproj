@@ -150,6 +150,8 @@
     <None Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ByteArrayRead.h" />
+    <ClInclude Include="ByteArrayWrite.h" />
     <ClInclude Include="ClassFactory.h" />
     <ClInclude Include="GbitsThumbnailProvider.h" />
     <ClInclude Include="Reg.h" />
@@ -159,6 +161,8 @@
     <ClInclude Include="webp\types.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="ByteArrayRead.cpp" />
+    <ClCompile Include="ByteArrayWrite.cpp" />
     <ClCompile Include="ClassFactory.cpp" />
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="GbitsThumbnailProvider.cpp" />

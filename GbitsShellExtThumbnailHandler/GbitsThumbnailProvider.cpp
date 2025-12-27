@@ -3,19 +3,10 @@
 #pragma comment(lib, "Shlwapi.lib")
 #include<regex>
 #include<string>
+#include"ByteArrayRead.h"
+#include"ByteArrayWrite.h"
 #include "webp/decode.h"
 #pragma comment( lib, "lib/libwebp.lib" )
-using namespace std;
-
-
-//#define _DEBUG
-#ifdef _DEBUG
-#include<fstream>
-#include <iostream>
-#define DEBUGLOG(str) {std::wofstream file;file.open("C:\\log.txt", std::ios::app);file << str<< "\n";}
-#else
-#define DEBUGLOG(str) ;
-#endif // DEBUG
 
 extern HINSTANCE g_hInst;
 extern long g_cDllRef;
@@ -88,7 +79,7 @@ bool RGBAtoBMP(byte* pImageData, int iWidth, int iHeight, UINT* pulSize, byte** 
 			*pDestData++ = cRed;
 			*pDestData++ = cAlpha;
 		}
-	} 
+	}
 
 	*ppOutData = (byte*)pDataBuffer;
 	*pulSize = dwSize;
@@ -243,85 +234,24 @@ IFACEMETHODIMP GbitsThumbnailProvider::Initialize(IStream* pStream, DWORD grfMod
 }
 
 #pragma endregion
-
-//需要手动释放
-byte* ReadUIntN(IStream* pStream, SIZE_T size)
-{
-	byte* imagex = (byte*)CoTaskMemAlloc(size);
-	pStream->Read(imagex, size, NULL);
-	return imagex;
-}
-
-//取出int
-int ReadUInt32(IStream* pStream)
-{
-	unsigned char buf[4];
-	pStream->Read(buf, 4, NULL);
-	int ret = ((buf[3] << 24) | (buf[2] << 16) | (buf[1] << 8) | (buf[0] << 0));
-	return ret;
-}
-
-//取出short
-short ReadUInt16(IStream* pStream)
-{
-	unsigned char buf[2];
-	pStream->Read(buf, 2, NULL);
-	short ret = ((buf[1] << 8) | (buf[0] << 0));
-	return ret;
-}
-
-//取出char
-char ReadUInt8(IStream* pStream)
-{
-	unsigned char buf[1];
-	pStream->Read(buf, 1, NULL);
-	char ret = (buf[0] << 0);
-	return ret;
-}
-
-//取出int
-void ReadRun(IStream* pStream,int size)
-{
-	LARGE_INTEGER dlibMove;
-	dlibMove.QuadPart = size;
-	//pStream->Seek(dlibMove, STREAM_SEEK_SET, NULL);
-	pStream->Seek(dlibMove, STREAM_SEEK_CUR, NULL);
-}
-
-//验证是否为图组
-bool isZU(byte* bufferx)
-{
-	int A = *bufferx++;
-	int B = *bufferx++;
-	int C = *bufferx++;
-	int D = *bufferx++;
-	int ret = ((D << 24) | (C << 16) | (B << 8) | (A << 0));
-	if (ret != 1234567890) {
-		return false;
-	}
-	return true;
-}
-
 //查询图片位置并判断类型 (缩略图只需一张,所以直接搜索更直接)
-int isType(byte* bufferx, int size, int* c)
+int isType(ByteArrayRead& data, int size, int* c)
 {
-	unsigned int dx = size / 2;
+	int dx = size / 2;
 
 	int x = 0;
-	for (unsigned int ulRow = 0; ulRow < dx; ulRow++)
+	for (int ulRow = 0; ulRow < dx; ulRow++)
 	{
-		int A = *bufferx++;
-		int B = *bufferx++;
-		int ret = ((B << 8) | (A << 0));
-		if (ret == 40056) {//zlib压缩数据一般为Alpha,如果是特殊gbits图组则用于染色
+		int ret = data.readShort();
+		if (ret == 30876) {//789c zlib压缩数据一般为Alpha,如果是特殊gbits图组则用于染色
 			*c = x;
 			return 0;
 		}
-		if (ret == 55551) {//jpg
+		if (ret == 65496) {//ffd8 jpg
 			*c = x;
 			return 1;
 		}
-		if (ret == 18770) {//webp
+		if (ret == 21065) {//5249 webp
 			*c = x;
 			return 2;
 		}
@@ -329,7 +259,6 @@ int isType(byte* bufferx, int size, int* c)
 	}
 	return 0;
 }
-
 
 #pragma region IThumbnailProvider
 
@@ -348,116 +277,116 @@ IFACEMETHODIMP GbitsThumbnailProvider::GetThumbnail(UINT cx, HBITMAP* phbmp,
 	ULONG actRead;
 	ULARGE_INTEGER fileSize;
 
-	hr = IStream_Size(m_pStream, &fileSize); if (!SUCCEEDED(hr)) { DEBUGLOG("Error at IStream_Size"); return E_FAIL; }
+	hr = IStream_Size(m_pStream, &fileSize); if (!SUCCEEDED(hr)) { return E_FAIL; }
 
-	byte* buffer = (byte*)CoTaskMemAlloc(fileSize.QuadPart);
-	if (!buffer) { DEBUGLOG("Error at malloc buffer");  return E_FAIL; }
+	byte* buffer = (byte*)CoTaskMemAlloc(fileSize.QuadPart + 1);
+	if (!buffer) { return E_FAIL; }
 	else
 	{
-		hr = m_pStream->Read(buffer, (LONG)fileSize.QuadPart + 1, &actRead);
-		if (hr != S_FALSE)
-		{
+		hr = m_pStream->Read(buffer, fileSize.QuadPart + 1, &actRead);
+		if (!SUCCEEDED(hr)) {
 			CoTaskMemFree(buffer);
-			DEBUGLOG("Error at Read Stream");
 			return E_FAIL;
 		}
 	}
-
-	byte* bufferx = (byte*)CoTaskMemAlloc(fileSize.QuadPart);
 	UINT nFileLenx = 0;
-	Decrypt((byte*)buffer, fileSize.QuadPart, &nFileLenx, &bufferx);
-
-	if (isZU(bufferx))
+	//解密微端数据
+	Decrypt(buffer, fileSize.QuadPart, &nFileLenx, &buffer);
+	ByteArrayRead rdata(buffer, nFileLenx);
+	//读取头部验证
+	int head = rdata.readInt(ByteArrayRead::ENDIAN_LITTLE);
+	if (head == 1234567890)
 	{
-		DEBUGLOG("图组");
+		//定位图片位置
 		int wz = 0;
-		int type = isType(bufferx, nFileLenx, &wz);
-
-		DEBUGLOG(type);
-		DEBUGLOG(wz);
+		//判断图片类型
+		int type = isType(rdata, nFileLenx, &wz);
 		if (type == 0) {
 			CoTaskMemFree(buffer);
 			return E_FAIL;
 		}
-		IStream* pImageStream = SHCreateMemStream(bufferx, nFileLenx);
-		ReadRun(pImageStream, wz - 4);
-		int datalen = ReadUInt32(pImageStream);
-		byte* data = (byte*)CoTaskMemAlloc(datalen);
-		data = ReadUIntN(pImageStream, datalen);
-		DEBUGLOG("类型T");
-		DEBUGLOG(datalen);
+		//定位到图片数据位置
+		rdata.seek(wz);
+		//读取图片数据长度
+		int datalen = rdata.readInt(ByteArrayRead::ENDIAN_LITTLE);
+		//读取图片数据
+		auto rawdata = rdata.getRawBytes(datalen);
 		if (type == 1) {//jpg
-			IStream* pImageStreamx = SHCreateMemStream(data, datalen);
+			IStream* pImageStreamx = SHCreateMemStream(reinterpret_cast<const BYTE*>(rawdata.data()), datalen);
 			hr = WICCreate32bppHBITMAP(pImageStreamx, phbmp, pdwAlpha);
 			pImageStreamx->Release();
 		}
-		if (type == 2) {//webp
+		else if (type == 2) {//webp
 			int kx = 0;
 			int gy = 0;
-			WebPGetInfo(data, datalen, &kx, &gy);
+			WebPGetInfo(reinterpret_cast<const uint8_t*>(rawdata.data()), datalen, &kx, &gy);
 			if (kx == 0 || gy == 0) {
+				CoTaskMemFree(buffer);
 				return E_FAIL;
 			}
-			byte* imagex = (byte*)CoTaskMemAlloc(static_cast<SIZE_T>(kx) * gy * 4);
-			kx = 0;
-			gy = 0;
-			imagex = WebPDecodeRGBA(data, datalen, &kx, &gy);
+			byte* imagex = WebPDecodeRGBA(reinterpret_cast<const uint8_t*>(rawdata.data()), datalen, &kx, &gy);
+			if (!imagex) {
+				CoTaskMemFree(buffer);
+				return E_FAIL;
+			}
 			UINT size = 0;
 			RGBAtoBMP((unsigned char*)imagex, kx, gy, &size, &imagex);
-
 			IStream* pImageStreamx = SHCreateMemStream(imagex, size);
 			hr = WICCreate32bppHBITMAP(pImageStreamx, phbmp, pdwAlpha);
 			pImageStreamx->Release();
-			CoTaskMemFree(imagex);
+			WebPFree(imagex);
 		}
-		CoTaskMemFree(data);
-		pImageStream->Release();
 	}
 	else
 	{
-		char A = *bufferx++;
-		*bufferx--;
-		IStream* pImageStream = SHCreateMemStream(bufferx, nFileLenx);
-		ReadRun(pImageStream, 4);
-		int datalen = ReadUInt32(pImageStream);
-		byte* data = (byte*)CoTaskMemAlloc(datalen);
-		data = ReadUIntN(pImageStream, datalen);
-		int wz = 0;
-		int type = isType(bufferx, nFileLenx, &wz);
-		if (type == 0) {
-			pImageStream->Release();
+		//归零
+		rdata.seek(0);
+		//取第一个字节
+		head = rdata.readByte();
+		if (head > 10) {//大于10基本上不是gbits
 			CoTaskMemFree(buffer);
 			return E_FAIL;
 		}
-		if (A == 8) {
-			DEBUGLOG("webp单图");
+		rdata.seek(4);
+		int datalen = rdata.readInt(ByteArrayRead::ENDIAN_LITTLE);
+		int wz = 0;
+		//位置归0 寻找是否存在图片
+		rdata.seek(0);
+		int type = isType(rdata, nFileLenx, &wz);
+		//定位到图片数据位置
+		rdata.seek(wz);
+		//读取图片数据
+		auto rawdata = rdata.getRawBytes(datalen);
+		if (type == 0) {
+			CoTaskMemFree(buffer);
+			return E_FAIL;
+		}
+		if (head == 8) {
 			int kx = 0;
 			int gy = 0;
-			WebPGetInfo(data, datalen, &kx, &gy);
-			if (kx==0 || gy==0) {
+			WebPGetInfo(reinterpret_cast<const uint8_t*>(rawdata.data()), datalen, &kx, &gy);
+			if (kx == 0 || gy == 0) {
+				CoTaskMemFree(buffer);
 				return E_FAIL;
 			}
-			byte* imagex = (byte*)CoTaskMemAlloc(static_cast<SIZE_T>(kx) * gy * 4);
-			kx = 0;
-			gy = 0;
-			imagex = WebPDecodeRGBA(data, datalen, &kx, &gy);
+
+			byte* imagex = WebPDecodeRGBA(reinterpret_cast<const uint8_t*>(rawdata.data()), datalen, &kx, &gy);
+			if (!imagex) {
+				CoTaskMemFree(buffer);
+				return E_FAIL;
+			}
 			UINT size = 0;
 			RGBAtoBMP((unsigned char*)imagex, kx, gy, &size, &imagex);
-
 			IStream* pImageStreamx = SHCreateMemStream(imagex, size);
 			hr = WICCreate32bppHBITMAP(pImageStreamx, phbmp, pdwAlpha);
 			pImageStreamx->Release();
-			CoTaskMemFree(imagex);
+			WebPFree(imagex);
 		}
 		else {
-			DEBUGLOG("jpg单图");
-			IStream* pImageStreamx = SHCreateMemStream(data, datalen);
+			IStream* pImageStreamx = SHCreateMemStream(reinterpret_cast<const BYTE*>(rawdata.data()), datalen);
 			hr = WICCreate32bppHBITMAP(pImageStreamx, phbmp, pdwAlpha);
 			pImageStreamx->Release();
 		}
-		CoTaskMemFree(data);
-		pImageStream->Release();
-
 	}
 	CoTaskMemFree(buffer);
 	return hr;
